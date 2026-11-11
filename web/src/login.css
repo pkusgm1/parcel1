@@ -1,0 +1,250 @@
+/* The application's login shares the guide's orange stage and typographic scale. */
+.login-app {
+  background: var(--background);
+}
+.login-app main {
+  max-width: none;
+  padding: 0;
+  display: flex;
+}
+.login-layout {
+  background: var(--background);
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  width: 100%;
+  min-height: 650px;
+}
+.login-story {
+  background: var(--orange);
+  color: var(--stage-ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 52px var(--space) 36px;
+  min-width: 0;
+  position: relative;
+}
+.story-copy {
+  width: 100%;
+}
+.story-title {
+  font-size: var(--display);
+  font-weight: 800;
+  line-height: 1.14;
+  letter-spacing: -0.055em;
+  text-wrap: balance;
+}
+.story-copy p:not(.story-title) {
+  margin-top: 28px;
+  font-size: var(--body);
+  line-height: 1.65;
+  max-width: 36ch;
+}
+.login-envelope-display {
+  width: 260px;
+  height: 220px;
+  margin: 32px auto;
+  flex-shrink: 0;
+}
+.login-envelope-motion {
+  width: 100%;
+  height: 100%;
+}
+.login-envelope-motion .parcel-envelope {
+  margin: 0;
+}
+.login-envelope-motion .envelope-sheet {
+  transition: transform 550ms var(--ease);
+}
+.login-story[data-focused="true"] .envelope-sheet {
+  transform: translateY(-18px) rotate(-3deg);
+}
+.login-story[data-busy="true"] .envelope-sheet {
+  transform: translateY(18px) rotate(0deg);
+}
+.login-visual-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--small);
+  min-height: 24px;
+}
+.login-visual-status svg {
+  flex-shrink: 0;
+}
+.auth-card {
+  padding: 64px clamp(28px, 4vw, 64px);
+  align-self: center;
+  width: 100%;
+  max-width: 640px;
+  justify-self: center;
+  min-width: 0;
+}
+.auth-card h1 {
+  font-size: clamp(28px, 2.8vw, 40px);
+  line-height: 1.25;
+  margin-bottom: 20px;
+}
+.auth-card form {
+  margin-top: 36px;
+}
+.auth-card form .button,
+.auth-card > .button {
+  margin-top: 24px;
+}
+.auth-card .note {
+  margin-top: 24px;
+}
+.login-app header > .text-button {
+  display: none;
+}
+.login-app footer {
+  background: var(--background);
+}
+.auth-card label:not(.auth-checkbox) {
+  display: block;
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+.totp-code {
+  letter-spacing: 0.28em;
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+}
+.totp-qr {
+  display: flex;
+  justify-content: center;
+  background: #fff;
+  min-height: 240px;
+  margin-bottom: 20px;
+}
+.totp-qr img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+.totp-secret code {
+  display: block;
+  overflow-wrap: anywhere;
+  user-select: all;
+  padding-block: 8px;
+}
+.totp-secret summary {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.recovery-codes {
+  padding: 0;
+  list-style: none;
+  margin-block: 24px;
+}
+.recovery-codes li {
+  padding-block: 5px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.auth-card .auth-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.auth-checkbox input {
+  width: 20px;
+  min-height: 20px;
+  flex-shrink: 0;
+}
+.auth-recover {
+  margin-top: 24px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.auth-security {
+  padding: 0;
+  margin: 48px auto;
+}
+@media (min-width: 768px) and (max-width: 1100px) {
+  .story-title {
+    font-size: clamp(36px, 5vw, 54px);
+  }
+  .login-story {
+    padding-top: 44px;
+  }
+  .auth-card {
+    padding-inline: 28px;
+  }
+}
+@media (max-width: 767px) {
+  .admin-app header > nav.totp-nav {
+    gap: 4px;
+    font-size: 14px;
+  }
+  nav.totp-nav > a,
+  nav.totp-nav .text-button {
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+  .auth-security {
+    margin-block: 24px;
+  }
+  .login-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .login-story {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 124px;
+    padding: 28px var(--space) 32px;
+    gap: 24px 12px;
+  }
+  .story-copy {
+    display: contents;
+  }
+  .story-title {
+    grid-column: 1 / -1;
+    font-size: clamp(36px, 7.8vw, 56px);
+    line-height: 1.15;
+  }
+  .story-copy p:not(.story-title) {
+    margin-top: 0;
+    max-width: none;
+  }
+  .login-envelope-display {
+    width: 124px;
+    height: 110px;
+    margin: 0;
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+  }
+  .login-envelope-motion .parcel-envelope {
+    transform: scale(0.47);
+    transform-origin: top left;
+  }
+  .login-visual-status {
+    display: none;
+  }
+  .auth-card {
+    padding: 36px var(--space) 32px;
+    max-width: none;
+  }
+  .auth-card h1 {
+    font-size: 28px;
+  }
+  .auth-card form {
+    margin-top: 28px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-envelope-motion {
+    transform: none;
+  }
+  .login-envelope-motion .envelope-sheet,
+  .login-story[data-focused="true"] .envelope-sheet,
+  .login-story[data-busy="true"] .envelope-sheet {
+    transform: rotate(-7deg);
+    transition: none;
+  }
+}

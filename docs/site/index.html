@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#ff8126" />
+    <meta
+      name="description"
+      content="Deploy the open-source Parcel file relay on Cloudflare Workers, D1, and private R2. A guide with real dashboard screenshots and a configuration generator."
+    />
+    <title>Parcel — Cloudflare deployment guide</title>
+    <link rel="alternate" hreflang="en" href="./" />
+    <link rel="alternate" hreflang="zh-CN" href="zh.html" />
+    <link rel="canonical" href="https://parcelwiki.pages.dev/" />
+    <link rel="stylesheet" href="style.css?v=20261020-bilingual-hero" />
+    <script src="guide.js?v=20261020-totp-e2ee" defer></script>
+  </head>
+  <body id="top">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header>
+      <a class="wordmark" href="#top" translate="no">Parcel</a>
+      <nav aria-label="Main navigation">
+        <a href="#steps">Setup</a><a href="#config">Config tool</a
+        ><a href="#security">Security</a
+        ><a href="https://github.com/hyphy-void/Parcel">GitHub</a>
+        <a
+          class="language-switch"
+          data-language-switch
+          href="zh.html"
+          lang="zh-CN"
+          hreflang="zh-CN"
+          aria-label="切换到中文"
+          title="切换到中文"
+          ><svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+          >
+            <path
+              d="M3 5h12M9 3v2m-3 0c0 6 4 10 8 12M12 5c0 6-4 10-9 12m11 4 4-10 4 10m-7-3h6"
+            /></svg
+          ><span>中文</span></a
+        >
+      </nav>
+    </header>
+    <main id="main" tabindex="-1">
+      <section class="hero" aria-labelledby="guide-title">
+        <h1 id="guide-title">
+          <span class="hero-line">Share a file.</span>
+          <span class="hero-line">Leave the rest to us.</span>
+        </h1>
+        <div class="hero-bottom">
+          <div class="hero-copy">
+            <p>
+              Upload. Send the link.<br class="hero-break" />
+              Expiry takes care of cleanup.
+            </p>
+            <p class="note hero-note">
+              MIT open source · Workers Free supported
+            </p>
+          </div>
+          <div class="hero-actions">
+            <a
+              class="action"
+              href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fhyphy-void%2FParcel"
+            >
+              <span>Deploy to Cloudflare</span><span aria-hidden="true">↗</span>
+            </a>
+            <a class="hero-guide-link" href="#prepare"
+              >Explore the setup guide <span aria-hidden="true">↓</span></a
+            >
+          </div>
+        </div>
+      </section>
+      <section
+        id="security"
+        class="reading security-section"
+        aria-labelledby="security-title"
+      >
+        <div class="section-heading">
+          <h2 id="security-title">Encrypted at both ends</h2>
+          <p>
+            End-to-end encryption: plaintext appears only in the sender’s and
+            recipient’s browsers. Cloudflare receives, stores, and returns
+            ciphertext. The plaintext file key is never uploaded.
+          </p>
+        </div>
+        <figure class="e2ee-figure">
+          <div class="e2ee-flow" data-e2ee-flow>
+            <div class="e2ee-endpoint e2ee-sender">
+              <p class="flow-node-title">Sender’s browser</p>
+              <svg aria-hidden="true" viewBox="0 0 96 112">
+                <path
+                  d="M16 4h42l24 24v80H16zM58 4v26h24M30 52h38M30 68h38M30 84h24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="5"
+                />
+              </svg>
+              <strong class="e2ee-file-label">Original file</strong>
+              <p>
+                Generates a random file key locally. Encrypts 16 MiB plaintext
+                blocks with AES-256-GCM before uploading.
+              </p>
+            </div>
+            <div class="e2ee-route">
+              <span>Upload ciphertext</span
+              ><svg class="flow-arrow" aria-hidden="true" viewBox="0 0 160 40">
+                <path
+                  d="M4 20h148m-18-14 18 14-18 14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+              </svg>
+            </div>
+            <div class="e2ee-cloud">
+              <p class="flow-node-title">Cloudflare</p>
+              <p class="e2ee-cipher">Ciphertext</p>
+              <p>
+                Private R2 stores encrypted data; D1 stores the encrypted key
+                envelope. The Worker checks permissions, expiry, and download
+                limits, then signs short-lived download URLs.
+              </p>
+              <p class="e2ee-keyless">No plaintext file key in the cloud</p>
+            </div>
+            <div class="e2ee-route">
+              <span>Download ciphertext</span
+              ><svg class="flow-arrow" aria-hidden="true" viewBox="0 0 160 40">
+                <path
+                  d="M4 20h148m-18-14 18 14-18 14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+              </svg>
+            </div>
+            <div class="e2ee-endpoint e2ee-recipient">
+              <p class="flow-node-title">Recipient’s browser</p>
+              <svg aria-hidden="true" viewBox="0 0 96 112">
+                <path
+                  d="M16 4h42l24 24v80H16zM58 4v26h24M30 52h38M30 68h38M30 84h24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="5"
+                />
+              </svg>
+              <strong class="e2ee-file-label">Restored file</strong>
+              <p>
+                Uses the complete link and optional share password to open the
+                key envelope locally. Verifies blocks, decrypts, saves, and
+                checks the full SHA-256.
+              </p>
+            </div>
+          </div>
+          <div class="e2ee-key-route">
+            <p class="flow-node-title">You deliver the decryption material</p>
+            <p>
+              The complete link’s #k=…, plus your share password if set → the
+              recipient’s browser. The fragment key is never sent with HTTP
+              requests or added to the Parcel API.
+            </p>
+          </div>
+          <figcaption>
+            Each file has an independent random 256-bit key. Every block has a
+            fresh 12-byte nonce and a 16-byte authentication tag: 28 extra
+            bytes. Authentication binds the file identity, block order, and
+            length.
+          </figcaption>
+        </figure>
+        <p class="security-truth">
+          File contents, original filenames, media types, and the plaintext
+          SHA-256 are encrypted. The server still sees file sizes, share IDs,
+          expiry, download counts, and request metadata. This end-to-end
+          encryption applies to the Cloudflare deployment; the separate Go and
+          origin-backed Pages builds retain their earlier transfer protocol.
+        </p>
+        <div class="password-explainer">
+          <h3>A link key, plus your password</h3>
+          <ol class="password-flow">
+            <li>
+              <h4>Keep the link complete</h4>
+              <p>
+                A random 32-byte secret sits after # in the share link. URL
+                fragments are not sent in HTTP requests. Parcel does not put
+                this secret in its API calls. Without it, the recipient cannot
+                unwrap the file key, and the server cannot recover it.
+              </p>
+            </li>
+            <li>
+              <h4>Unwrap locally</h4>
+              <p>
+                Without a password, HKDF derives the envelope key from the link
+                secret. Password-protected shares add Argon2id with an
+                independent random salt. HKDF combines the password material and
+                link secret to wrap the file key and metadata using AES-GCM. The
+                recipient needs the complete link and the password, if set.
+              </p>
+            </li>
+            <li>
+              <h4>Gate downloads separately</h4>
+              <p>
+                Another separately salted password credential goes to the Worker
+                over HTTPS for online authorization. That credential is not the
+                wrapping key. Expiry, limits, revocation, and admin TOTP remain
+                server-side checks.
+              </p>
+            </li>
+          </ol>
+        </div>
+        <p class="note">
+          Changing a share password rewraps the small key envelope; it does not
+          reupload the file. Anyone who already obtained the old file key and
+          ciphertext can keep decrypting their copy. Revocation cannot retrieve
+          saved files or keys.
+        </p>
+        <p class="note">
+          This assumes a trustworthy browser, device, and delivered webpage.
+          Maliciously changed webpage code, extensions, or local malware can
+          access keys at an endpoint. HTTPS and Cloudflare’s storage encryption
+          remain additional layers, rather than substitutes for endpoint trust.
+        </p>
+        <p class="security-sources">
+          <a
+            href="https://github.com/hyphy-void/Parcel/blob/main/docs/e2ee-protocol.md"
+            >Read the end-to-end encryption protocol</a
+          >
+          ·
+          <a
+            href="https://github.com/hyphy-void/Parcel/blob/main/web/src/e2ee.ts"
+            >Read the implementation</a
+          >
+        </p>
+      </section>
+      <section id="steps" class="reading">
+        <div class="section-heading">
+          <h2>Start from scratch</h2>
+          <p>
+            The deploy button creates the app resources. Follow the dashboard
+            screens below to set up administrator access and browser uploads.
+            <span class="note review-note"
+              >Screenshots reviewed
+              <time datetime="2026-10-20" data-review-date
+                >October 20, 2026</time
+              >.</span
+            >
+          </p>
+        </div>
+        <div class="guide-layout">
+          <aside class="guide-contents">
+            <details class="contents-disclosure" open>
+              <summary>On this page</summary>
+              <nav aria-label="Deployment chapters">
+                <a href="#prepare">Prepare your accounts</a>
+                <a href="#button">Create the app</a>
+                <a href="#totp">Password + TOTP</a>
+                <a href="#r2">Create R2 credentials</a>
+                <a href="#variables">Save variables and secrets</a>
+                <a href="#cors">Allow browser uploads</a>
+                <a href="#encrypted-sharing">Use encrypted shares</a>
+                <a href="#config">Config tool</a>
+                <a href="#verify">Launch checks</a>
+                <a href="#faq">Troubleshooting</a>
+              </nav>
+            </details>
+          </aside>
+          <div class="guide-content">
+            <article id="prepare">
+              <h3>Prepare your accounts</h3>
+              <div class="answer">
+                <p>
+                  Prepare GitHub and Cloudflare accounts. Enable R2 and a
+                  Workers subdomain. Existing accounts do not need to repeat
+                  setup. R2 may require a payment method; complete plan and
+                  payment setup yourself.
+                </p>
+                <p>
+                  This guide is for new instances. To upgrade an existing Go,
+                  Pages, or earlier Worker instance, use the repository’s
+                  migration and production deployment docs so that two services
+                  do not manage the same bucket.
+                </p>
+                <p>
+                  The app defaults to a 9&nbsp;GB storage quota and an
+                  8&nbsp;GiB file limit. R2 free allowances are shared across
+                  your account; storage, requests, and other buckets affect
+                  billing. The app quota is not a billing cap.
+                  <a href="https://developers.cloudflare.com/r2/pricing/"
+                    >See R2 pricing</a
+                  >.
+                </p>
+              </div>
+            </article>
+            <article id="button">
+              <h3>Create the app</h3>
+              <div class="answer">
+                <p>
+                  Click the deploy button and follow Cloudflare’s steps to
+                  create your own GitHub repository and choose a Worker, D1
+                  database, and R2 bucket. Keep the root directory at
+                  <code translate="no">/</code> and use Node
+                  <code translate="no">24</code>.
+                </p>
+                <p>
+                  Use <code translate="no">npm run build</code> as the build
+                  command and <code translate="no">npm run deploy</code> as the
+                  deploy command. The deploy script applies D1 migrations
+                  through the <code translate="no">DB</code> binding and writes
+                  the actual bucket name to
+                  <code translate="no">R2_BUCKET_NAME</code>.
+                </p>
+                <p>
+                  Disable preview builds. The template and deployment commands
+                  set
+                  <code translate="no">ADMIN_AUTH=totp</code>; omitting this
+                  runtime variable also defaults to password + TOTP.
+                  Administrators sign in with a password and authenticator code;
+                  public share pages remain available to recipients.
+                </p>
+                <p>
+                  Keep <code translate="no">ACTIVE=false</code> for the first
+                  deployment. A
+                  <code translate="no">serverless_unconfigured</code> response
+                  is expected until runtime configuration is complete. Do not
+                  share links before setup is finished.
+                </p>
+                <figure>
+                  <a href="images/bindings.webp"
+                    ><img
+                      src="images/bindings.webp"
+                      alt="Production D1, R2, and two rate limiter bindings with example namespace labels"
+                      width="1788"
+                      height="636"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    Settings → Bindings → Production: DB binds D1 and FILES
+                    binds private R2. ADMIN_LIMITER and API_LIMITER are rate
+                    limiters. This instance names its resources parcel.
+                    Namespace values are replaced with YOUR_*_NAMESPACE_ID
+                    labels; keep the bindings generated by your own deployment.
+                  </figcaption>
+                </figure>
+                <figure>
+                  <a href="images/template-build.webp"
+                    ><img
+                      src="images/template-build.webp"
+                      alt="Successful production parcel build for commit 9c5abf2 with expanded production build settings"
+                      width="2452"
+                      height="1127"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    A successful build of the existing production parcel
+                    instance. Build settings shows npm run build:production, npm
+                    run deploy:production, and root directory /. The green check
+                    marks a successful build of commit 9c5abf2. This illustrates
+                    a production update. New button deployments must use npm run
+                    build and npm run deploy, without :production.
+                  </figcaption>
+                </figure>
+              </div>
+            </article>
+            <article id="totp">
+              <h3>Password + TOTP login</h3>
+              <div class="answer">
+                <p>
+                  Administrators sign in with a Parcel password and TOTP code.
+                  The template and deployment commands set
+                  <code translate="no">ADMIN_AUTH=totp</code>; omitting this
+                  runtime variable also defaults to this login mode. Complete
+                  the first-time enrollment below.
+                </p>
+                <figure class="binding-figure">
+                  <div class="binding-map">
+                    <div class="binding-screen">
+                      <svg aria-hidden="true" viewBox="0 0 160 112">
+                        <path
+                          d="M8 8h144v82H8zM58 104h44M80 90v14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="5"
+                        />
+                        <path
+                          d="M35 31h26v26H35zM96 31h26v26H96zM72 67h16"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="6"
+                        />
+                      </svg>
+                      <p class="flow-node-title">Parcel binding page</p>
+                      <span>Binding code generated locally</span>
+                    </div>
+                    <div class="binding-route">
+                      <svg
+                        class="flow-arrow"
+                        aria-hidden="true"
+                        viewBox="0 0 160 40"
+                      >
+                        <path
+                          d="M4 20h148m-18-14 18 14-18 14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="4"
+                        /></svg
+                      ><span>Scan or import manually</span>
+                    </div>
+                    <div class="binding-phone">
+                      <svg aria-hidden="true" viewBox="0 0 80 112">
+                        <rect
+                          x="12"
+                          y="5"
+                          width="56"
+                          height="102"
+                          rx="4"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="5"
+                        />
+                        <path
+                          d="M30 17h20M33 95h14M24 45h32M24 60h32"
+                          stroke="currentColor"
+                          stroke-width="5"
+                        />
+                      </svg>
+                      <p class="flow-node-title">Your authenticator</p>
+                      <span>A new code every 30 seconds</span>
+                    </div>
+                    <div class="binding-recovery">
+                      <p class="flow-node-title">Save recovery codes</p>
+                      <span
+                        >Keep 8 codes separately · Rebinding invalidates old
+                        codes</span
+                      >
+                    </div>
+                  </div>
+                  <figcaption>
+                    Process diagram only: no scannable QR code, real secret, or
+                    valid recovery code.
+                  </figcaption>
+                </figure>
+                <ol>
+                  <li>
+                    Complete the R2, variable, and three permanent secret
+                    settings below first. Keep
+                    <code translate="no">ACTIVE=false</code>. Deployment applies
+                    D1 migrations, including
+                    <code translate="no">0003_admin_totp.sql</code>.
+                  </li>
+                  <li>
+                    Clone the repository locally and use Node 24. Run
+                    <code translate="no">npm run admin:setup-token</code>. It
+                    saves a random initialization secret in
+                    <code translate="no">.parcel-v3/admin-setup-token.txt</code>
+                    without printing it or overwriting an existing file. Store
+                    its contents as Worker Secret
+                    <code translate="no">ADMIN_SETUP_TOKEN</code>, without the
+                    final newline. Preserve the existing
+                    <code translate="no">SESSION_SECRET</code>.
+                  </li>
+                  <li>
+                    Open your <code translate="no">/login</code>, enter the
+                    initialization secret, and set an admin password of at least
+                    12 characters. Scan the binding code with a TOTP
+                    authenticator or import the secret manually. Enter its
+                    6-digit code to confirm. The QR code is generated locally in
+                    the browser, without a third-party QR service.
+                  </li>
+                  <li>
+                    Save the 8 recovery codes securely, then remove
+                    <code translate="no">ADMIN_SETUP_TOKEN</code> from Worker
+                    Secrets. Normal login uses a password and TOTP code. Login
+                    security lets you replace the authenticator; if it is lost,
+                    a password plus one recovery code starts rebinding. Each
+                    recovery code works once.
+                  </li>
+                </ol>
+                <p>
+                  After enrollment, use a new private window to verify password
+                  + TOTP login, rejection of incorrect credentials, and HTTP 401
+                  from anonymous administrator APIs. Then set
+                  <code translate="no">ACTIVE=true</code> and deploy before
+                  testing uploads and public shares. Maintenance allows
+                  enrollment and login, but file transfers remain disabled.
+                </p>
+              </div>
+            </article>
+
+            <article id="r2">
+              <h3>Create R2 credentials</h3>
+              <div class="answer">
+                <p>
+                  Go to R2 → Overview → Manage API Tokens → Create Account API
+                  token. Choose Object Read &amp; Write and restrict access to
+                  this app’s bucket. Save the S3 Access Key ID and Secret Access
+                  Key as two Worker secrets.
+                </p>
+                <figure>
+                  <a href="images/r2-token.webp"
+                    ><img
+                      src="images/r2-token.webp"
+                      alt="R2 account token form with Object Read & Write and only the parcel bucket selected"
+                      width="2327"
+                      height="2345"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    Create Account API Token: select Object Read &amp; Write,
+                    then Apply to specific buckets only and choose the parcel
+                    bucket. This is the setup form; no Access Key ID or Secret
+                    Access Key has been generated or shown.
+                  </figcaption>
+                </figure>
+                <p>
+                  <code translate="no">R2_ENDPOINT</code> is the account-level
+                  S3 API address in the bucket settings, such as
+                  <code translate="no"
+                    >https://ACCOUNT_ID.r2.cloudflarestorage.com</code
+                  >, without a bucket name or trailing slash. The Worker’s
+                  <code translate="no">FILES</code> binding,
+                  <code translate="no">R2_BUCKET_NAME</code>, and credential
+                  scope must refer to the same bucket.
+                </p>
+                <p>
+                  Keep the bucket private. Do not enable a public r2.dev URL or
+                  public bucket domain. Uploads and downloads use short-lived
+                  presigned URLs.
+                </p>
+              </div>
+            </article>
+            <article id="variables">
+              <h3>Save variables & secrets</h3>
+              <div class="answer">
+                <p>
+                  Open Worker → Settings → Runtime variables and secrets. Save
+                  ordinary settings as variables. Check “Secret” for these three
+                  values:
+                </p>
+                <ul>
+                  <li>
+                    <code translate="no">SESSION_SECRET</code>: an independently
+                    generated random value of 64 hexadecimal characters.
+                  </li>
+                  <li>
+                    <code translate="no">R2_ACCESS_KEY_ID</code>: the S3 Access
+                    Key ID you just created.
+                  </li>
+                  <li>
+                    <code translate="no">R2_SECRET_ACCESS_KEY</code>: its
+                    matching S3 Secret Access Key.
+                  </li>
+                </ul>
+                <div class="command-block" data-copy-block>
+                  <div class="command-toolbar">
+                    <span>Generate a session secret</span
+                    ><button type="button" data-copy="secret-command" hidden>
+                      Copy command
+                    </button>
+                  </div>
+                  <pre
+                    tabindex="0"
+                    role="region"
+                    aria-label="Session secret command"
+                  ><code id="secret-command" translate="no">node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"</code></pre>
+                  <p class="copy-message" role="status" aria-live="polite"></p>
+                </div>
+                <p>
+                  Generate the session secret in your own terminal. Keep it out
+                  of Git, issues, screenshots, and webpages. Back it up securely
+                  and preserve it on later deployments. Replacing it prevents
+                  decryption of password verification material and TOTP secrets,
+                  affecting share unlock and administrator login.
+                </p>
+                <figure>
+                  <a href="images/add-secret.webp"
+                    ><img
+                      src="images/add-secret.webp"
+                      alt="Empty Add environment variable form with Production and Secret selected"
+                      width="1217"
+                      height="680"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    Add variable: choose Production, enter the Key and Value,
+                    and check Secret. The inputs here are empty and show
+                    placeholders only. Never include actual secrets in
+                    screenshots.
+                  </figcaption>
+                </figure>
+                <p>
+                  At minimum, set <code translate="no">PUBLIC_URL</code>,
+                  <code translate="no">ADMIN_AUTH=totp</code>,
+                  <code translate="no">R2_ENDPOINT</code>, and
+                  <code translate="no">R2_BUCKET_NAME</code>. PUBLIC_URL must
+                  match your actual HTTPS origin, with no path or trailing
+                  slash. First-time enrollment also needs the temporary
+                  <code translate="no">ADMIN_SETUP_TOKEN</code> secret; remove
+                  it after binding.
+                </p>
+              </div>
+            </article>
+            <article id="cors">
+              <h3>Allow browser uploads</h3>
+              <div class="answer">
+                <p>
+                  Open R2 → your bucket → Settings → CORS Policy → Edit.
+                  AllowedOrigins must exactly match
+                  <code translate="no">PUBLIC_URL</code>. The configuration tool
+                  below generates the JSON to paste.
+                </p>
+                <figure>
+                  <a href="images/r2-cors.webp"
+                    ><img
+                      src="images/r2-cors.webp"
+                      alt="Private R2 bucket CORS Policy editor with an example origin replacing the real domain"
+                      width="1395"
+                      height="1266"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    Settings → CORS Policy → Edit. Use the same origin as
+                    PUBLIC_URL. Include Content-Type, Range, and
+                    X-Amz-Meta-Parcel-Upload; the generator and no-JavaScript
+                    example below include all three. CORS controls which
+                    cross-origin requests browsers can send. File access still
+                    requires a private bucket and signed authorization.
+                  </figcaption>
+                </figure>
+                <p>
+                  Under Object lifecycle rules, add a rule to abort incomplete
+                  Multipart uploads after one day, scoped to the
+                  <code translate="no">parcel/v3/</code> prefix. Do not add a
+                  separate age-based deletion rule for completed objects: the
+                  app’s Cron and D1 state coordinate expiration and deletion.
+                </p>
+                <p>
+                  Check that Cron is <code translate="no">*/5 * * * *</code>. On
+                  Free, keep <code translate="no">WORKERS_PLAN=free</code> and
+                  <code translate="no">CLEANUP_BATCH_SIZE=1</code>.
+                </p>
+              </div>
+            </article>
+            <article id="encrypted-sharing">
+              <h3>Use encrypted shares</h3>
+              <div class="answer">
+                <p>
+                  Choose a file and optional share password. The browser first
+                  hashes the whole original file, then encrypts and uploads one
+                  16 MiB plaintext block at a time. Memory use stays bounded;
+                  the final block may be smaller. Empty files have one
+                  authenticated 28-byte encrypted block.
+                </p>
+                <p>
+                  Pause or refresh without clearing site data. Select the
+                  original file again to resume: Parcel checks its entire
+                  SHA-256, rather than trusting its name or size. Completed
+                  blocks stay in R2; retries use fresh nonces. The browser must
+                  retain its local upload key and the task must remain valid.
+                </p>
+                <p>
+                  Copy the complete share link, including <code>#k=…</code>, and
+                  send the optional password separately. Keep a copy of the
+                  link. On the share page, use “Back up / import local share
+                  keys” to export a small encrypted key backup with a separate
+                  passphrase of at least 12 bytes. Import it before managing
+                  passwords on another browser. An administrator session alone
+                  cannot recover missing keys or filenames.
+                </p>
+                <p>
+                  The recipient unlocks the file locally and downloads
+                  authenticated ciphertext blocks into this browser’s IndexedDB.
+                  After reception, “Save decrypted file” verifies, decrypts, and
+                  streams the original file to disk; it never builds one
+                  whole-file Blob. Refreshing can resume from complete cached
+                  blocks. Repeated requests in the same valid download session
+                  do not consume another download qualification.
+                </p>
+                <p>
+                  Allow space for both the temporary ciphertext and final file,
+                  roughly twice the file size plus headroom. Browser storage
+                  quotas, private mode, device free space, download permissions,
+                  and storage eviction can limit large files. Long-term storage
+                  permission is optional and does not block reception. Keep the
+                  page open while saving; clear its local resume cache after
+                  confirming the file is saved.
+                </p>
+                <p>
+                  Keys in the creating browser’s site data are not protected
+                  against someone who controls that browser. Back them up before
+                  clearing site data or changing devices. Losing all local keys,
+                  complete links, and backups is unrecoverable by the server.
+                  Earlier unencrypted Worker shares are not compatible and must
+                  be uploaded again; the upgrade does not delete existing D1 or
+                  R2 data. Go and origin-backed Pages remain separate, non-E2EE
+                  modes.
+                </p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section id="config" class="config-section">
+        <div class="config-layout">
+          <div class="section-heading">
+            <h2>Generate your config</h2>
+            <p>
+              Enter your app URL, account ID, and bucket name. Everything is
+              computed in this browser. The tool never asks for secrets.
+            </p>
+          </div>
+          <div class="config-controls">
+            <form id="config-form" novalidate hidden>
+              <div class="form-field">
+                <label for="origin">App HTTPS URL</label>
+                <input
+                  id="origin"
+                  name="origin"
+                  type="url"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocapitalize="none"
+                  placeholder="https://parcel.example.com…"
+                  aria-describedby="origin-hint origin-error"
+                  required
+                />
+                <p class="field-hint" id="origin-hint">
+                  Your production address, without a path or port.
+                </p>
+                <p class="field-error" id="origin-error" hidden></p>
+              </div>
+              <div class="form-field">
+                <label for="account">Cloudflare account ID</label>
+                <input
+                  id="account"
+                  name="account"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocapitalize="none"
+                  maxlength="32"
+                  placeholder="0123456789abcdef…"
+                  aria-describedby="account-hint account-error"
+                  required
+                />
+                <p class="field-hint" id="account-hint">
+                  The 32-character hexadecimal ID on your account home.
+                </p>
+                <p class="field-error" id="account-error" hidden></p>
+              </div>
+              <div class="form-field">
+                <label for="bucket">R2 bucket name</label>
+                <input
+                  id="bucket"
+                  name="bucket"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocapitalize="none"
+                  maxlength="63"
+                  value="parcel"
+                  aria-describedby="bucket-hint bucket-error"
+                  required
+                />
+                <p class="field-hint" id="bucket-hint">
+                  Use the same private bucket as your FILES binding.
+                </p>
+                <p class="field-error" id="bucket-error" hidden></p>
+              </div>
+              <button type="submit">Generate CORS & variables</button>
+            </form>
+            <p
+              id="config-message"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              Everything stays in this page. Reload to clear it.
+            </p>
+          </div>
+        </div>
+        <div id="config-result" hidden>
+          <p class="output-help">
+            Scroll within each code block to review it. Copy includes the full
+            configuration.
+          </p>
+          <div class="output-block" data-copy-block>
+            <div class="output-heading">
+              <h3>CORS Policy</h3>
+              <button type="button" data-copy="cors-output">
+                Copy CORS JSON
+              </button>
+            </div>
+            <p class="output-destination">R2 → Settings → CORS policy</p>
+
+            <pre
+              role="region"
+              tabindex="0"
+              aria-label="CORS JSON"
+            ><code id="cors-output" translate="no"></code></pre>
+
+            <p class="copy-message" role="status" aria-live="polite"></p>
+          </div>
+          <div class="output-block" data-copy-block>
+            <div class="output-heading">
+              <h3>Runtime variables</h3>
+              <button type="button" data-copy="vars-output">
+                Copy variables
+              </button>
+            </div>
+            <p class="output-destination">
+              Worker → Settings → Variables and Secrets
+            </p>
+
+            <pre
+              role="region"
+              tabindex="0"
+              aria-label="Runtime variables"
+            ><code id="vars-output" translate="no"></code></pre>
+
+            <p class="copy-message" role="status" aria-live="polite"></p>
+          </div>
+          <p>
+            <span id="auth-config-help"
+              >Save the three permanent secrets and the temporary
+              ADMIN_SETUP_TOKEN for first-time enrollment. Set an administrator
+              password, bind an authenticator, save the recovery codes, then
+              remove the setup secret.</span
+            >
+          </p>
+        </div>
+        <noscript
+          ><p>
+            With JavaScript disabled, replace example.com below with your own
+            PUBLIC_URL:
+          </p>
+          <pre
+            tabindex="0"
+            role="region"
+            aria-label="CORS configuration example"
+          ><code translate="no">[{"AllowedOrigins":["https://parcel.example.com"],"AllowedMethods":["GET","HEAD","PUT"],"AllowedHeaders":["Content-Type","Range","X-Amz-Meta-Parcel-Upload"],"ExposeHeaders":["ETag","Content-Length","Content-Range","Accept-Ranges"],"MaxAgeSeconds":3600}]</code></pre>
+        </noscript>
+      </section>
+      <section id="verify" class="reading verify">
+        <div class="verify-intro">
+          <h2>Check before launch</h2>
+          <p class="lead">
+            Set ACTIVE to true and deploy. Test the whole flow with a small file
+            before opening your instance.
+          </p>
+        </div>
+        <div class="verify-checks">
+          <ol>
+            <li>
+              Open <code translate="no">/admin</code> in a private window. It
+              must show password and authenticator-code login. Incorrect
+              passwords or codes must fail, and anonymous administrator APIs
+              must return HTTP 401.
+            </li>
+            <li>
+              Upload empty, small, and multi-block files, with and without a
+              password. Pause, refresh, and select the original file to resume.
+              Check that R2 contains ciphertext and D1 has no original filename
+              or plaintext file key.
+            </li>
+            <li>
+              Open complete links while signed out. Test correct and incorrect
+              passwords and missing fragment keys. Pause and refresh reception,
+              save the decrypted file, and compare its SHA-256 with the
+              original. A lost initial response or retry in the same valid
+              session must not consume another download.
+            </li>
+            <li>
+              Revoke a share and check that it cannot issue new signed URLs.
+              Previously signed URLs can remain valid for up to five minutes.
+              Copies of ciphertext and keys already obtained cannot be recalled.
+            </li>
+            <li>
+              Export and import an encrypted key backup. Change the share
+              password without uploading the file again; confirm that a fresh
+              recipient needs the new password and complete link.
+            </li>
+            <li>
+              Wait for Cron. Confirm that quota is released after object
+              deletion, and inspect Worker errors and CPU metrics.
+            </li>
+          </ol>
+          <p>
+            Workers Free has a CPU budget of 10&nbsp;ms per request. Local tests
+            do not verify production CPU or real R2 settings. Check metrics if
+            production returns error 1102.
+            <a href="https://developers.cloudflare.com/workers/platform/limits/"
+              >See Workers limits</a
+            >.
+          </p>
+        </div>
+      </section>
+      <section id="faq" class="reading">
+        <h2>Need a hand?</h2>
+        <div class="faq-list">
+          <details id="faq-unconfigured" name="troubleshooting">
+            <summary>The page returns serverless_unconfigured</summary>
+            <p>
+              Check <code translate="no">ADMIN_AUTH=totp</code> and the three
+              permanent secrets. SESSION_SECRET must contain 64 hexadecimal
+              characters. PUBLIC_URL and R2_ENDPOINT must be HTTPS origins
+              without a path or trailing slash. An uninitialized instance also
+              needs ADMIN_SETUP_TOKEN.
+            </p>
+          </details>
+          <details id="faq-login-loop" name="troubleshooting">
+            <summary>host_denied or a login loop</summary>
+            <p>
+              The hostname you visit must match PUBLIC_URL, and the browser must
+              allow session cookies. If authenticator codes fail, enable
+              automatic time synchronization on the authenticator device; each
+              30-second time step can be used only once. After a login timeout,
+              the page checks for an established session and offers entry to the
+              admin page or a new login. An app domain change needs updated
+              PUBLIC_URL and R2 CORS; moving this guide does not change the app
+              domain.
+            </p>
+          </details>
+          <details id="faq-upload-errors" name="troubleshooting">
+            <summary>CORS rejection or a signature error</summary>
+            <p>
+              Check that the CORS origin exactly matches PUBLIC_URL and that the
+              FILES binding, R2_BUCKET_NAME, and S3 credential scope use the
+              same bucket. An API token cannot replace the S3 Secret Access Key.
+            </p>
+          </details>
+          <details id="faq-screenshots" name="troubleshooting">
+            <summary>Which screenshots need updating?</summary>
+            <p>
+              Update any Parcel app screenshots of upload creation and progress,
+              complete share links, password changes and key backups, and the
+              recipient’s unlock, ciphertext reception, and decrypted-save flow.
+              Use disposable demo files and keys, and never publish a real full
+              link, password, key backup, or authenticator secret.
+            </p>
+            <p>
+              The guide keeps six Cloudflare configuration screenshots:
+              bindings, successful build details, R2 credentials, adding
+              secrets, CORS, and production build settings. Generate runtime
+              variables with the config tool. End-to-end encryption adds no
+              server-side file key or CORS header. TOTP enrollment remains a
+              webpage illustration; no real binding screenshot is needed.
+            </p>
+          </details>
+          <details id="faq-updates" name="troubleshooting">
+            <summary>How do updates preserve my config?</summary>
+            <p>
+              Template deployment uses --keep-vars to preserve dashboard
+              variables and secrets, and applies D1 migrations first. Do not
+              switch a production instance to first-time CLI bootstrap. Back up
+              D1 and SESSION_SECRET and read migration notes before upgrading.
+              Rolling back a Worker does not roll back its database.
+            </p>
+            <figure>
+              <a href="images/builds.webp"
+                ><img
+                  src="images/builds.webp"
+                  alt="Production main branch build configuration with a placeholder replacing the resource configuration"
+                  width="1840"
+                  height="2457"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                Settings → Builds → Production: this existing instance uses npm
+                run build:production and npm run deploy:production, root
+                directory /, and Node 24. The solid YOUR_RESOURCE_CONFIG_JSON
+                label replaces the entire original build-variable value. It is a
+                placeholder, not literal JSON: supply the complete object with
+                accountId, workerName, databaseId, databaseName, and bucketName
+                as documented in the operations guide. New button deployments
+                still use npm run build and npm run deploy.
+              </figcaption>
+            </figure>
+          </details>
+          <details id="faq-cli" name="troubleshooting">
+            <summary>Can I use only the CLI?</summary>
+            <p>
+              Yes. Install Node 24 and Bash, clone the repository, and use
+              deploy/v3.example.json to create a config in an ignored directory.
+              Prepare an account-scoped management token and a private
+              ADMIN_SETUP_TOKEN, then run npm run deploy:bootstrap -- --config
+              .parcel-v3/deploy.json. Set your password and bind TOTP at /login,
+              save recovery codes and remove the setup secret, then rerun with
+              --activate. The script verifies enrollment before opening the
+              service. See the repository docs for credentials, migration, and
+              recovery.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <div>
+        <p>Upload. Share. Let it expire.</p>
+        <p>
+          <a
+            href="https://github.com/hyphy-void/Parcel/blob/main/docs/v3-deployment.md"
+            >Operations documentation</a
+          >
+          ·
+          <a href="https://github.com/hyphy-void/Parcel/blob/main/LICENSE"
+            >MIT License</a
+          >
+        </p>
+        <p>
+          These screenshots show an existing instance in the real Cloudflare
+          dashboard. Solid labels permanently cover account and identity details
+          and replace them with examples. Use your own resource names,
+          configuration, and domains. Click any image to open the
+          original-resolution, lossless WebP. Dashboard labels may change;
+          follow the current interface.
+        </p>
+      </div>
+      <p class="footer-name" aria-hidden="true" translate="no">Parcel</p>
+    </footer>
+  </body>
+</html>

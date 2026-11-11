@@ -1,0 +1,60 @@
+{
+  "$schema": "./cloudflare/node_modules/wrangler/config-schema.json",
+  "name": "parcel1",
+  "main": "cloudflare/v3/worker.mjs",
+  "compatibility_date": "2026-10-10",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist/v3-web",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "parcel",
+      "database_id": "b033eb81-214a-4936-972d-55688a4a8dee",
+      "migrations_dir": "cloudflare/v3/migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "parcel","preview_bucket_name": "parcel"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "vars": {
+    "PUBLIC_URL": "https://f069f561a22b92940aeb16c2c694149c.r2.cloudflarestorage.com",
+    "ADMIN_AUTH": "totp",
+    "R2_ENDPOINT": "https://your-account.r2.cloudflarestorage.com",
+    "R2_BUCKET_NAME": "parcel",
+    "STORAGE_QUOTA_BYTES": "9000000000",
+    "MAX_FILE_BYTES": "8589934592",
+    "ACTIVE": "false",
+    "WORKERS_PLAN": "free",
+    "CLEANUP_BATCH_SIZE": "1"
+  },
+  "ratelimits": [
+    {
+      "name": "API_LIMITER",
+      "namespace_id": "7391",
+      "simple": {
+        "limit": 300,
+        "period": 60
+      }
+    },
+    {
+      "name": "ADMIN_LIMITER",
+      "namespace_id": "7392",
+      "simple": {
+        "limit": 3000,
+        "period": 60
+      }
+    }
+  ]
+}

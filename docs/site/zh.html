@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#ff8126" />
+    <meta
+      name="description"
+      content="Parcel 开源文件中转站的 Cloudflare 部署教程。Workers、D1、私有 R2，配有实际控制台截图与配置生成器。"
+    />
+    <title>Parcel — Cloudflare 部署手册</title>
+    <link rel="alternate" hreflang="en" href="./" />
+    <link rel="alternate" hreflang="zh-CN" href="zh.html" />
+    <link rel="canonical" href="https://parcelwiki.pages.dev/zh.html" />
+    <link rel="stylesheet" href="style.css?v=20261020-bilingual-hero" />
+    <script src="guide.js?v=20261020-totp-e2ee" defer></script>
+  </head>
+  <body id="top">
+    <a class="skip-link" href="#main">跳转到正文</a>
+    <header>
+      <a class="wordmark" href="#top" translate="no">Parcel</a>
+      <nav aria-label="主导航">
+        <a href="#steps">部署步骤</a><a href="#config">配置工具</a
+        ><a href="#security">安全原理</a
+        ><a href="https://github.com/hyphy-void/Parcel">GitHub</a>
+        <a
+          class="language-switch"
+          data-language-switch
+          href="./"
+          lang="en"
+          hreflang="en"
+          aria-label="EN — Switch to English"
+          title="Switch to English"
+          ><svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+          >
+            <path
+              d="M3 5h12M9 3v2m-3 0c0 6 4 10 8 12M12 5c0 6-4 10-9 12m11 4 4-10 4 10m-7-3h6"
+            /></svg
+          ><span>EN</span></a
+        >
+      </nav>
+    </header>
+    <main id="main" tabindex="-1">
+      <section class="hero" aria-labelledby="guide-title">
+        <h1 id="guide-title">
+          <span class="hero-line">分享一份文件，</span>
+          <span class="hero-line">少一份牵挂。</span>
+        </h1>
+        <div class="hero-bottom">
+          <div class="hero-copy">
+            <p>上传，发出链接。<br class="hero-break" />到期自动清理。</p>
+            <p class="note hero-note">MIT 开源 · 支持 Workers Free</p>
+          </div>
+          <div class="hero-actions">
+            <a
+              class="action"
+              href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fhyphy-void%2FParcel"
+            >
+              <span>部署到 Cloudflare</span><span aria-hidden="true">↗</span>
+            </a>
+            <a class="hero-guide-link" href="#prepare"
+              >先看部署指南 <span aria-hidden="true">↓</span></a
+            >
+          </div>
+        </div>
+      </section>
+      <section
+        id="security"
+        class="reading security-section"
+        aria-labelledby="security-title"
+      >
+        <div class="section-heading">
+          <h2 id="security-title">文件在浏览器加密</h2>
+          <p>
+            端到端加密：明文只在发送者和接收者的浏览器出现。Cloudflare
+            接收、保存和返回的都是密文，明文文件密钥不会上传。
+          </p>
+        </div>
+        <figure class="e2ee-figure">
+          <div class="e2ee-flow" data-e2ee-flow>
+            <div class="e2ee-endpoint e2ee-sender">
+              <p class="flow-node-title">发送者浏览器</p>
+              <svg aria-hidden="true" viewBox="0 0 96 112">
+                <path
+                  d="M16 4h42l24 24v80H16zM58 4v26h24M30 52h38M30 68h38M30 84h24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="5"
+                />
+              </svg>
+              <strong class="e2ee-file-label">原始文件</strong>
+              <p>
+                本机生成随机文件密钥，按 16 MiB 原文分块，用 AES-256-GCM
+                加密后上传。
+              </p>
+            </div>
+            <div class="e2ee-route">
+              <span>上传密文</span
+              ><svg class="flow-arrow" aria-hidden="true" viewBox="0 0 160 40">
+                <path
+                  d="M4 20h148m-18-14 18 14-18 14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+              </svg>
+            </div>
+            <div class="e2ee-cloud">
+              <p class="flow-node-title">Cloudflare</p>
+              <p class="e2ee-cipher">密文</p>
+              <p>
+                私有 R2 保存加密数据；D1 保存加密密钥信封。Worker
+                检查权限、有效期和次数，签发短期下载地址。
+              </p>
+              <p class="e2ee-keyless">云端没有明文文件密钥</p>
+            </div>
+            <div class="e2ee-route">
+              <span>下载密文</span
+              ><svg class="flow-arrow" aria-hidden="true" viewBox="0 0 160 40">
+                <path
+                  d="M4 20h148m-18-14 18 14-18 14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+              </svg>
+            </div>
+            <div class="e2ee-endpoint e2ee-recipient">
+              <p class="flow-node-title">接收者浏览器</p>
+              <svg aria-hidden="true" viewBox="0 0 96 112">
+                <path
+                  d="M16 4h42l24 24v80H16zM58 4v26h24M30 52h38M30 68h38M30 84h24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="5"
+                />
+              </svg>
+              <strong class="e2ee-file-label">还原文件</strong>
+              <p>
+                用完整链接和可选分享密码在本机解开密钥信封，验证分块后解密保存，并核对完整
+                SHA-256。
+              </p>
+            </div>
+          </div>
+          <div class="e2ee-key-route">
+            <p class="flow-node-title">解密材料由你交给对方</p>
+            <p>
+              完整链接中的 #k=…，加上你设置的分享密码 →
+              接收者浏览器。片段密钥不随 HTTP 请求发送，也不进入 Parcel API。
+            </p>
+          </div>
+          <figcaption>
+            每个文件使用独立的随机 256 位密钥。每块使用新的 12 字节随机 nonce 和
+            16 字节认证标签，额外占用 28
+            字节；认证同时绑定文件身份、块顺序与长度。
+          </figcaption>
+        </figure>
+        <p class="security-truth">
+          文件内容、原始文件名、媒体类型和原文 SHA-256
+          均被加密。服务端仍可见大小、分享
+          ID、有效期、下载次数和请求元信息。端到端加密仅适用于 Cloudflare
+          部署；独立 Go 与连接 Origin 的 Pages 构建保留原有传输协议。
+        </p>
+        <div class="password-explainer">
+          <h3>链接密钥与分享密码</h3>
+          <ol class="password-flow">
+            <li>
+              <h4>保留完整链接</h4>
+              <p>
+                分享链接的 # 后保存随机 32 字节密钥材料。URL 片段不会随 HTTP
+                请求发送；Parcel 也不会把它加入
+                API。缺少这部分，接收者无法解包文件密钥，服务器也无法代为恢复。
+              </p>
+            </li>
+            <li>
+              <h4>本机解包密钥</h4>
+              <p>
+                无密码时，链接材料经 HKDF
+                派生信封密钥。有密码时，浏览器先用独立随机盐运行
+                Argon2id，再与链接材料共同经 HKDF 派生，用 AES-GCM
+                包裹文件密钥和元信息。接收者需要完整链接与所设置的密码。
+              </p>
+            </li>
+            <li>
+              <h4>单独验证下载权限</h4>
+              <p>
+                另一份使用不同盐的密码派生凭据，经 HTTPS 交给 Worker
+                做在线授权；它不是解包密钥。有效期、次数、撤销和管理员 TOTP
+                仍由服务端检查。
+              </p>
+            </li>
+          </ol>
+        </div>
+        <p class="note">
+          修改分享密码只重新包裹很小的密钥信封，不重传文件。已经拿到旧文件密钥和密文的人，仍能解密自己的副本；撤销无法收回已保存的文件或密钥。
+        </p>
+        <p class="note">
+          此机制信任浏览器、设备与实际加载的网页代码。恶意更新的网页、扩展或本机恶意程序仍可能读取端点密钥。
+          HTTPS 和 Cloudflare 的存储加密继续提供额外保护，不能代替端点可信。
+        </p>
+        <p class="security-sources">
+          <a
+            href="https://github.com/hyphy-void/Parcel/blob/main/docs/e2ee-protocol.md"
+            >查看端到端加密协议</a
+          >
+          ·
+          <a
+            href="https://github.com/hyphy-void/Parcel/blob/main/web/src/e2ee.ts"
+            >核对实现代码</a
+          >
+        </p>
+      </section>
+      <section id="steps" class="reading">
+        <div class="section-heading">
+          <h2>从空账户开始</h2>
+          <p>
+            按钮负责创建应用资源。管理员认证和文件跨域权限，按下面的实际控制台页面完成。
+            <span class="note review-note"
+              >截图核对于
+              <time datetime="2026-10-20" data-review-date
+                >2026 年 10 月 20 日</time
+              >。</span
+            >
+          </p>
+        </div>
+        <div class="guide-layout">
+          <aside class="guide-contents">
+            <details class="contents-disclosure" open>
+              <summary>本页目录</summary>
+              <nav aria-label="部署章节">
+                <a href="#prepare">准备账户</a>
+                <a href="#button">创建应用</a>
+                <a href="#totp">密码与动态码</a>
+                <a href="#r2">创建 R2 凭据</a>
+                <a href="#variables">保存变量与密钥</a>
+                <a href="#cors">允许浏览器直传</a>
+                <a href="#encrypted-sharing">使用加密分享</a>
+                <a href="#config">配置工具</a>
+                <a href="#verify">上线验收</a>
+                <a href="#faq">常见问题</a>
+              </nav>
+            </details>
+          </aside>
+          <div class="guide-content">
+            <article id="prepare">
+              <h3>准备账户</h3>
+              <div class="answer">
+                <p>
+                  准备 GitHub 与 Cloudflare 账户，开通 R2 并设置 Workers
+                  子域名。已有账户无需重复创建。R2
+                  可能要求绑定付款方式；请自行完成套餐与付款设置。
+                </p>
+                <p>
+                  本教程适用于新实例。现有 Go、Pages 或旧 Worker
+                  实例升级，请使用仓库的迁移与生产部署文档，避免两套服务管理同一桶。
+                </p>
+                <p>
+                  应用默认配额为 9&nbsp;GB、单文件上限为 8&nbsp;GiB。R2
+                  免费额度按账户共享，存储、请求和其他桶都会影响账单；应用配额不是账单硬上限。<a
+                    href="https://developers.cloudflare.com/r2/pricing/"
+                    >查看 R2 价格</a
+                  >。
+                </p>
+              </div>
+            </article>
+            <article id="button">
+              <h3>创建应用</h3>
+              <div class="answer">
+                <p>
+                  点击部署按钮，按 Cloudflare 的引导创建自己的 GitHub 仓库，选择
+                  Worker 名称以及 D1、R2 资源。根目录保持
+                  <code translate="no">/</code>，Node 版本使用
+                  <code translate="no">24</code>。
+                </p>
+                <p>
+                  构建命令为
+                  <code translate="no">npm run build</code>，部署命令为
+                  <code translate="no">npm run deploy</code>。部署脚本通过
+                  <code translate="no">DB</code> 绑定执行 D1
+                  migrations，并把实际创建的 R2 桶名写入
+                  <code translate="no">R2_BUCKET_NAME</code>。
+                </p>
+                <p>
+                  关闭“启用预览构建”。模板与部署命令固定设置
+                  <code translate="no">ADMIN_AUTH=totp</code
+                  >，省略该运行时变量也默认使用密码加
+                  TOTP。公开分享页供接收者访问。
+                </p>
+                <p>
+                  首次保持
+                  <code translate="no">ACTIVE=false</code>。缺少运行时配置时返回
+                  <code translate="no">serverless_unconfigured</code>
+                  是预期状态；配置完成前不要对外分享。
+                </p>
+                <figure>
+                  <a href="images/bindings.webp"
+                    ><img
+                      src="images/bindings.webp"
+                      alt="Worker 生产环境中的 D1、R2 与两个速率限制器绑定，命名空间已替换为示例标签"
+                      width="1788"
+                      height="636"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    Settings → Bindings → Production：DB 绑定 D1，FILES 绑定私有
+                    R2；ADMIN_LIMITER 和 API_LIMITER
+                    为速率限制器。图中的资源名为 parcel，命名空间值已覆盖并填入
+                    YOUR_*_NAMESPACE_ID 示例标签；保留自己部署生成的绑定。
+                  </figcaption>
+                </figure>
+                <figure>
+                  <a href="images/template-build.webp"
+                    ><img
+                      src="images/template-build.webp"
+                      alt="正式 parcel 实例的成功构建，提交 9c5abf2 与展开的生产构建设置"
+                      width="2452"
+                      height="1127"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    正式 parcel 实例的成功构建：Build settings 显示 npm run
+                    build:production、npm run deploy:production 与根目录
+                    /；顶部绿色勾号表示构建成功，图中提交为
+                    9c5abf2。这是既有实例的生产构建示例；新用户按钮部署应使用
+                    npm run build 与 npm run deploy，不能照抄这里带 :production
+                    的命令。
+                  </figcaption>
+                </figure>
+              </div>
+            </article>
+            <article id="totp">
+              <h3>密码与动态码登录</h3>
+              <div class="answer">
+                <p>
+                  管理员使用 Parcel 自带的密码 + TOTP 登录。在 Worker
+                  的运行时变量里设置
+                  <code translate="no">ADMIN_AUTH=totp</code
+                  >；模板与部署命令会固定设置，省略该变量也默认使用此模式。按下面的步骤完成首次初始化。
+                </p>
+                <figure class="binding-figure">
+                  <div class="binding-map">
+                    <div class="binding-screen">
+                      <svg aria-hidden="true" viewBox="0 0 160 112">
+                        <path
+                          d="M8 8h144v82H8zM58 104h44M80 90v14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="5"
+                        />
+                        <path
+                          d="M35 31h26v26H35zM96 31h26v26H96zM72 67h16"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="6"
+                        />
+                      </svg>
+                      <p class="flow-node-title">Parcel 绑定页</p>
+                      <span>本地生成绑定码</span>
+                    </div>
+                    <div class="binding-route">
+                      <svg
+                        class="flow-arrow"
+                        aria-hidden="true"
+                        viewBox="0 0 160 40"
+                      >
+                        <path
+                          d="M4 20h148m-18-14 18 14-18 14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="4"
+                        /></svg
+                      ><span>扫码或手动导入</span>
+                    </div>
+                    <div class="binding-phone">
+                      <svg aria-hidden="true" viewBox="0 0 80 112">
+                        <rect
+                          x="12"
+                          y="5"
+                          width="56"
+                          height="102"
+                          rx="4"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="5"
+                        />
+                        <path
+                          d="M30 17h20M33 95h14M24 45h32M24 60h32"
+                          stroke="currentColor"
+                          stroke-width="5"
+                        />
+                      </svg>
+                      <p class="flow-node-title">你的认证器</p>
+                      <span>每 30 秒更新动态码</span>
+                    </div>
+                    <div class="binding-recovery">
+                      <p class="flow-node-title">保存恢复码</p>
+                      <span>8 个恢复码单独保管 · 更换认证器后旧码失效</span>
+                    </div>
+                  </div>
+                  <figcaption>
+                    流程示意，没有可扫描的二维码、真实密钥或有效恢复码。
+                  </figcaption>
+                </figure>
+                <ol>
+                  <li>
+                    先完成下面的 R2、变量与三项长期密钥配置，保持
+                    <code translate="no">ACTIVE=false</code
+                    >。当前部署脚本会自动应用包括
+                    <code translate="no">0003_admin_totp.sql</code> 在内的 D1
+                    migrations。
+                  </li>
+                  <li>
+                    本机克隆仓库并使用 Node 24，执行
+                    <code translate="no">npm run admin:setup-token</code
+                    >。命令将随机初始化密钥保存到
+                    <code translate="no">.parcel-v3/admin-setup-token.txt</code
+                    >，不会打印密钥，也不会覆盖已有文件。将文件内容作为 Worker
+                    Secret
+                    <code translate="no">ADMIN_SETUP_TOKEN</code>
+                    保存，去掉末尾换行；保留原
+                    <code translate="no">SESSION_SECRET</code>。
+                  </li>
+                  <li>
+                    打开自己的
+                    <code translate="no">/login</code>，输入初始化密钥，设置至少
+                    12 位的管理员密码。用支持 TOTP
+                    的认证器扫描页面上的绑定码，或手动导入密钥；输入认证器显示的
+                    6
+                    位动态码完成绑定。二维码在浏览器本地生成，不使用第三方二维码服务。
+                  </li>
+                  <li>
+                    安全保存页面给出的 8 个恢复码，再从 Worker Secrets 移除
+                    <code translate="no">ADMIN_SETUP_TOKEN</code
+                    >。日常登录只需密码与动态码。管理页“登录安全”可以更换认证器；丢失认证器时，用密码
+                    + 一个恢复码重新绑定，每个恢复码只能使用一次。
+                  </li>
+                </ol>
+                <p>
+                  初始化完成后，用新的无痕窗口验证密码 + TOTP
+                  登录、错误凭据被拒绝，以及匿名管理 API 返回 401。然后设为
+                  <code translate="no">ACTIVE=true</code>
+                  并部署，再验收上传和公开分享。维护状态允许绑定和登录，但不允许文件传输。
+                </p>
+              </div>
+            </article>
+
+            <article id="r2">
+              <h3>创建 R2 凭据</h3>
+              <div class="answer">
+                <p>
+                  R2 → Overview → Manage API Tokens → Create Account API
+                  token。选择 Object Read &amp; Write，仅允许这个应用的桶。记录
+                  S3 Access Key ID 与 Secret Access Key，作为 Worker
+                  的两项密钥保存。
+                </p>
+                <figure>
+                  <a href="images/r2-token.webp"
+                    ><img
+                      src="images/r2-token.webp"
+                      alt="R2 账户令牌表单，已选择 Object Read & Write 并仅允许 parcel 桶"
+                      width="2327"
+                      height="2345"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    Create Account API Token：选择 Object Read & Write，再选择
+                    Apply to specific buckets only 并指定 parcel
+                    桶。这里展示配置表单，没有生成或展示 Access Key ID、Secret
+                    Access Key。
+                  </figcaption>
+                </figure>
+                <p>
+                  <code translate="no">R2_ENDPOINT</code> 是桶设置里的 S3 API
+                  账户地址，例如
+                  <code translate="no"
+                    >https://ACCOUNT_ID.r2.cloudflarestorage.com</code
+                  >，不带桶名与尾部斜杠。Worker 的
+                  <code translate="no">FILES</code> 绑定、<code
+                    >R2_BUCKET_NAME</code
+                  >
+                  和凭据允许的桶必须一致。
+                </p>
+                <p>
+                  桶保持私有，不启用公开 r2.dev
+                  或公开桶域名。文件通过短期预签名地址上传与下载。
+                </p>
+              </div>
+            </article>
+            <article id="variables">
+              <h3>保存变量与密钥</h3>
+              <div class="answer">
+                <p>
+                  Worker → Settings →
+                  运行时变量和密钥。普通配置选择变量；以下三项勾选“密钥”：
+                </p>
+                <ul>
+                  <li>
+                    <code translate="no">SESSION_SECRET</code>：独立生成的 64
+                    位十六进制随机值。
+                  </li>
+                  <li>
+                    <code translate="no">R2_ACCESS_KEY_ID</code>：刚创建的 S3
+                    Access Key ID。
+                  </li>
+                  <li>
+                    <code translate="no">R2_SECRET_ACCESS_KEY</code>：配套 S3
+                    Secret Access Key。
+                  </li>
+                </ul>
+                <div class="command-block" data-copy-block>
+                  <div class="command-toolbar">
+                    <span>生成会话密钥</span
+                    ><button type="button" data-copy="secret-command" hidden>
+                      复制命令
+                    </button>
+                  </div>
+                  <pre
+                    tabindex="0"
+                    role="region"
+                    aria-label="生成会话密钥的命令"
+                  ><code id="secret-command" translate="no">node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"</code></pre>
+                  <p class="copy-message" role="status" aria-live="polite"></p>
+                </div>
+                <p>
+                  在自己的终端生成会话密钥，不要把结果放进
+                  Git、Issue、截图或网页。单独安全备份；后续部署保持不变，直接更换会导致密码校验材料和
+                  TOTP 密钥无法解密，影响分享解锁及管理员登录。
+                </p>
+                <figure>
+                  <a href="images/add-secret.webp"
+                    ><img
+                      src="images/add-secret.webp"
+                      alt="添加环境变量的空表单，已选择 Production 并勾选 Secret"
+                      width="1217"
+                      height="680"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    Add variable：选择 Production，填写 Key 和 Value，再勾选
+                    Secret。截图输入框为空，仅显示占位文本；不要把真实密钥放进截图。
+                  </figcaption>
+                </figure>
+                <p>
+                  普通变量至少填写 <code translate="no">PUBLIC_URL</code>、<code
+                    translate="no"
+                    >ADMIN_AUTH=totp</code
+                  >、<code translate="no">R2_ENDPOINT</code> 和
+                  <code translate="no">R2_BUCKET_NAME</code>。PUBLIC_URL
+                  必须等于实际访问的 HTTPS
+                  origin，无路径、无尾部斜杠。首次绑定还需临时 Secret
+                  <code translate="no">ADMIN_SETUP_TOKEN</code
+                  >；绑定完成后移除。
+                </p>
+              </div>
+            </article>
+            <article id="cors">
+              <h3>允许浏览器直传</h3>
+              <div class="answer">
+                <p>
+                  R2 → 你的桶 → Settings → CORS Policy → Edit。允许的 Origin
+                  精确使用
+                  <code translate="no">PUBLIC_URL</code
+                  >。下面的配置工具会生成可粘贴的 JSON。
+                </p>
+                <figure>
+                  <a href="images/r2-cors.webp"
+                    ><img
+                      src="images/r2-cors.webp"
+                      alt="私有 R2 桶的 CORS Policy 编辑器，真实来源已替换为示例地址"
+                      width="1395"
+                      height="1266"
+                      loading="lazy"
+                  /></a>
+                  <figcaption>
+                    Settings → CORS Policy → Edit。使用与 PUBLIC_URL
+                    一致的来源。完整规则须包含 Content-Type、Range 和
+                    X-Amz-Meta-Parcel-Upload；下面配置工具和无 JavaScript
+                    示例都包含这三项。CORS
+                    决定浏览器能发送哪些跨域请求，文件访问仍依赖私有桶与签名授权。
+                  </figcaption>
+                </figure>
+                <p>
+                  另在 Object lifecycle rules 添加一条仅针对
+                  <code translate="no">parcel/v3/</code> 前缀的未完成 Multipart
+                  清理规则，1
+                  天后终止未完成上传。不要设置已完成对象的独立删除期限，正常过期删除由应用
+                  Cron 与 D1 状态协调。
+                </p>
+                <p>
+                  确认 Cron 为 <code translate="no">*/5 * * * *</code>，Free
+                  模式保留 <code translate="no">WORKERS_PLAN=free</code>、<code
+                    translate="no"
+                    >CLEANUP_BATCH_SIZE=1</code
+                  >。
+                </p>
+              </div>
+            </article>
+            <article id="encrypted-sharing">
+              <h3>使用加密分享</h3>
+              <div class="answer">
+                <p>
+                  选择文件和可选分享密码。浏览器先读取原文件计算完整 SHA-256，
+                  再逐块加密、上传；每块原文为 16
+                  MiB，末块可更小，内存占用不会随文件总大小增长。
+                  空文件也有一个带认证信息的 28 字节密文块。
+                </p>
+                <p>
+                  暂停或刷新时保留网站数据。续传需重新选择原文件，Parcel
+                  会核对完整 SHA-256，而非只信任文件名和大小。已完成块留在 R2，
+                  重试使用新的随机
+                  nonce；浏览器须保留本地上传密钥，任务也须仍在有效期内。
+                </p>
+                <p>
+                  复制包含
+                  <code>#k=…</code>
+                  的完整分享链接，把可选密码分开发送，并留存链接。 分享页的“备份
+                  / 导入本机分享密钥”可以导出小型加密备份， 使用单独的至少 12
+                  字节备份口令。换浏览器管理密码前先导入备份；
+                  仅凭管理员登录不能找回丢失的密钥或原始文件名。
+                </p>
+                <p>
+                  接收者先在本机解锁，再把通过认证的密文块接收到浏览器
+                  IndexedDB。
+                  接收完成后点“保存解密文件”，逐块校验、解密并流式写入磁盘，不会拼成巨型
+                  Blob。刷新后可从完整缓存块继续；同一有效下载会话的重试不重复扣除下载资格。
+                </p>
+                <p>
+                  本机需同时容纳临时密文与最终原文件，约两倍文件大小并预留余量。
+                  浏览器配额、无痕模式、磁盘余量、下载权限和缓存自动清理都会影响大文件。
+                  长期存储权限可选，不回答或拒绝不会阻止本次接收。
+                  保存期间保持页面打开；确认文件已保存后，可清除本机续传缓存。
+                </p>
+                <p>
+                  创建者浏览器的网站数据中保存本机密钥，不能防住控制该浏览器的人。
+                  清理网站数据或换设备前先备份；本机密钥、完整链接和备份全部丢失后，服务器无法恢复。
+                  旧版未加密 Worker 分享不兼容，需重新上传；升级不会删除现有 D1
+                  或 R2 数据。 Go 与连接 Origin 的 Pages 仍是独立的非 E2EE
+                  模式。
+                </p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section id="config" class="config-section">
+        <div class="config-layout">
+          <div class="section-heading">
+            <h2>生成你的配置</h2>
+            <p>
+              输入应用地址、账户 ID
+              与桶名。工具仅在当前浏览器计算，不接收任何密钥。
+            </p>
+          </div>
+          <div class="config-controls">
+            <form id="config-form" novalidate hidden>
+              <div class="form-field">
+                <label for="origin">应用 HTTPS 地址</label>
+                <input
+                  id="origin"
+                  name="origin"
+                  type="url"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocapitalize="none"
+                  placeholder="https://parcel.example.com…"
+                  aria-describedby="origin-hint origin-error"
+                  required
+                />
+                <p class="field-hint" id="origin-hint">
+                  填写正式访问地址，不含路径或端口。
+                </p>
+                <p class="field-error" id="origin-error" hidden></p>
+              </div>
+              <div class="form-field">
+                <label for="account">Cloudflare 账户 ID</label>
+                <input
+                  id="account"
+                  name="account"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocapitalize="none"
+                  maxlength="32"
+                  placeholder="0123456789abcdef…"
+                  aria-describedby="account-hint account-error"
+                  required
+                />
+                <p class="field-hint" id="account-hint">
+                  账户主页中的 32 位十六进制 ID。
+                </p>
+                <p class="field-error" id="account-error" hidden></p>
+              </div>
+              <div class="form-field">
+                <label for="bucket">R2 桶名</label>
+                <input
+                  id="bucket"
+                  name="bucket"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocapitalize="none"
+                  maxlength="63"
+                  value="parcel"
+                  aria-describedby="bucket-hint bucket-error"
+                  required
+                />
+                <p class="field-hint" id="bucket-hint">
+                  使用 FILES 绑定的同一个私有桶。
+                </p>
+                <p class="field-error" id="bucket-error" hidden></p>
+              </div>
+              <button type="submit">生成 CORS 和变量</button>
+            </form>
+            <p
+              id="config-message"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              所有内容仅保存在页面内，刷新即可清空。
+            </p>
+          </div>
+        </div>
+        <div id="config-result" hidden>
+          <p class="output-help">代码区可滚动查看；复制时会包含完整配置。</p>
+          <div class="output-block" data-copy-block>
+            <div class="output-heading">
+              <h3>CORS Policy</h3>
+              <button type="button" data-copy="cors-output">
+                复制 CORS JSON
+              </button>
+            </div>
+            <p class="output-destination">R2 → Settings → CORS policy</p>
+
+            <pre
+              role="region"
+              tabindex="0"
+              aria-label="CORS JSON"
+            ><code id="cors-output" translate="no"></code></pre>
+
+            <p class="copy-message" role="status" aria-live="polite"></p>
+          </div>
+          <div class="output-block" data-copy-block>
+            <div class="output-heading">
+              <h3>运行时变量</h3>
+              <button type="button" data-copy="vars-output">复制变量</button>
+            </div>
+            <p class="output-destination">Worker → 设置 → 变量和密钥</p>
+
+            <pre
+              role="region"
+              tabindex="0"
+              aria-label="运行时变量"
+            ><code id="vars-output" translate="no"></code></pre>
+
+            <p class="copy-message" role="status" aria-live="polite"></p>
+          </div>
+          <p>
+            <span id="auth-config-help"
+              >另存三项长期密钥，以及仅用于首次绑定的
+              ADMIN_SETUP_TOKEN。设置管理员密码、绑定认证器并保存恢复码后，移除初始化密钥。</span
+            >
+          </p>
+        </div>
+        <noscript
+          ><p>
+            JavaScript 关闭时，请手动把下面的 example.com 替换为你的
+            PUBLIC_URL：
+          </p>
+          <pre
+            tabindex="0"
+            role="region"
+            aria-label="CORS 配置示例"
+          ><code translate="no">[{"AllowedOrigins":["https://parcel.example.com"],"AllowedMethods":["GET","HEAD","PUT"],"AllowedHeaders":["Content-Type","Range","X-Amz-Meta-Parcel-Upload"],"ExposeHeaders":["ETag","Content-Length","Content-Range","Accept-Ranges"],"MaxAgeSeconds":3600}]</code></pre>
+        </noscript>
+      </section>
+      <section id="verify" class="reading verify">
+        <div class="verify-intro">
+          <h2>最后一次检查</h2>
+          <p class="lead">
+            配置完整后，把 ACTIVE 改为 true
+            并部署。用一个小文件验证整条链路，再开放实例。
+          </p>
+        </div>
+        <div class="verify-checks">
+          <ol>
+            <li>
+              无痕窗口打开
+              <code translate="no">/admin</code
+              >，应显示密码与动态码登录。错误密码或动态码均不能通过；匿名管理
+              API 应返回 401。
+            </li>
+            <li>
+              上传空文件、小文件与多分块文件，分别创建无密码和有密码分享；暂停、刷新、重选原文件续传。
+              确认 R2 保存密文，D1 不含原始文件名或明文文件密钥。
+            </li>
+            <li>
+              未登录窗口打开完整链接，测试正确密码、错误密码与缺少片段密钥；
+              暂停、刷新接收后继续，保存解密文件并与原文件比对 SHA-256。
+              首次请求丢响应、同一有效下载会话重试或续签均不重复扣次。
+            </li>
+            <li>
+              撤销分享后不能获得新的签名地址。已签地址最长还有 5 分钟有效期。
+              已经获得的密文和密钥副本无法收回。
+            </li>
+            <li>
+              导出、导入加密密钥备份；修改分享密码不应重新上传文件。
+              新接收者须使用新密码与完整链接才能解密。
+            </li>
+            <li>
+              等待 Cron，确认对象删除后释放配额。观察 Worker 错误与 CPU 指标。
+            </li>
+          </ol>
+          <p>
+            Workers Free 的 CPU 预算为每次请求 10&nbsp;ms。本地测试不能证明线上
+            CPU 或真实 R2 配置；生产报 1102 时请检查指标。<a
+              href="https://developers.cloudflare.com/workers/platform/limits/"
+              >查看 Workers 限制</a
+            >。
+          </p>
+        </div>
+      </section>
+      <section id="faq" class="reading">
+        <h2>遇到问题</h2>
+        <div class="faq-list">
+          <details id="faq-unconfigured" name="troubleshooting">
+            <summary>页面返回 serverless_unconfigured</summary>
+            <p>
+              检查
+              <code translate="no">ADMIN_AUTH=totp</code>
+              与三项长期密钥。SESSION_SECRET 必须为 64 位十六进制；PUBLIC_URL 和
+              R2_ENDPOINT 必须是无路径、无尾部斜杠的 HTTPS 地址。未初始化时还需
+              ADMIN_SETUP_TOKEN。
+            </p>
+          </details>
+          <details id="faq-login-loop" name="troubleshooting">
+            <summary>返回 host_denied 或登录循环</summary>
+            <p>
+              访问域名须等于 PUBLIC_URL，并允许站点保存会话
+              Cookie。动态码不通过时，检查认证器设备是否自动同步时间；每个 30
+              秒时间步只使用一次。登录请求超时后，页面会检查是否已建立会话，可按提示进入管理页或重新登录。应用域名变更时，同步更新
+              PUBLIC_URL 与 R2 CORS；教程站点迁移不改变应用域名。
+            </p>
+          </details>
+          <details id="faq-upload-errors" name="troubleshooting">
+            <summary>上传被 CORS 拒绝或提示签名错误</summary>
+            <p>
+              检查 CORS Origin 与 PUBLIC_URL 完全一致；确认 FILES
+              绑定、R2_BUCKET_NAME、S3 凭据限定桶一致。账户 API Token 不能代替
+              S3 Secret Access Key。
+            </p>
+          </details>
+          <details id="faq-screenshots" name="troubleshooting">
+            <summary>哪些截图需要更新？</summary>
+            <p>
+              Parcel 应用侧的上传创建与进度、完整分享链接、密码修改与密钥备份、
+              接收者解锁、密文接收和解密保存流程截图都需要按新版重拍。
+              使用可丢弃的演示文件与密钥，不公开真实完整链接、密码、密钥备份或认证器密钥。
+            </p>
+            <p>
+              教程保留六张 Cloudflare 配置图：绑定、构建成功详情、R2
+              凭据、添加密钥、CORS
+              与生产构建设置。运行时变量由配置工具直接生成。端到端加密不新增服务端文件密钥或
+              CORS 请求头。TOTP 绑定使用网页示意，无需真实扫码截图。
+            </p>
+          </details>
+          <details id="faq-updates" name="troubleshooting">
+            <summary>后续更新怎样保留配置？</summary>
+            <p>
+              模板部署使用 --keep-vars，保留控制台普通变量与密钥，并先执行 D1
+              migrations。不要把生产实例改成首次 CLI bootstrap。升级前备份 D1 与
+              SESSION_SECRET，阅读版本迁移说明；Worker 回滚不等于数据库回滚。
+            </p>
+            <figure>
+              <a href="images/builds.webp"
+                ><img
+                  src="images/builds.webp"
+                  alt="正式实例 main 分支的构建配置，资源配置已替换为占位标签"
+                  width="1840"
+                  height="2457"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                Settings → Builds → Production：正式实例使用 npm run
+                build:production 和 npm run deploy:production，根目录为 /，Node
+                为 24。YOUR_RESOURCE_CONFIG_JSON
+                标签覆盖了原始构建变量值，它是占位说明，不能直接粘贴：请按运维文档填写包含
+                accountId、workerName、databaseId、databaseName、bucketName
+                的完整 JSON 对象。新用户按钮流程仍使用 npm run build 与 npm run
+                deploy。
+              </figcaption>
+            </figure>
+          </details>
+          <details id="faq-cli" name="troubleshooting">
+            <summary>可以只使用 CLI 吗？</summary>
+            <p>
+              可以。安装 Node 24 与 Bash，克隆仓库，用 deploy/v3.example.json
+              建立忽略目录中的配置，准备限定账户权限的管理 Token 和私密的
+              ADMIN_SETUP_TOKEN，再运行 npm run deploy:bootstrap -- --config
+              .parcel-v3/deploy.json。在 /login 设置密码并绑定
+              TOTP，保存恢复码、移除初始化 Secret 后， 加 --activate
+              重跑；脚本确认已绑定才会开放服务。凭据准备、迁移与恢复步骤见仓库文档。
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <div>
+        <p>上传。分享。到期消失。</p>
+        <p>
+          <a
+            href="https://github.com/hyphy-void/Parcel/blob/main/docs/v3-deployment.md"
+            >完整运维文档</a
+          >
+          ·
+          <a href="https://github.com/hyphy-void/Parcel/blob/main/LICENSE"
+            >MIT License</a
+          >
+        </p>
+        <p>
+          截图来自 Cloudflare
+          实际控制台中的现有实例；账户及身份信息已用实色永久覆盖并填入示例。部署时请使用自己的资源名称、配置和域名。点击图片可查看原始分辨率的无损
+          WebP。控制台界面可能变化，以当前标签为准。
+        </p>
+      </div>
+      <p class="footer-name" aria-hidden="true" translate="no">Parcel</p>
+    </footer>
+  </body>
+</html>
